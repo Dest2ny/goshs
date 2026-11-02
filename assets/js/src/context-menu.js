@@ -11,6 +11,9 @@ export function initContextMenu() {
     if (!tr || !tr.dataset.name || tr.dataset.name === "..") return;
     e.preventDefault();
     const name = tr.dataset.name;
+    // dataset.value holds the root-relative path ({{.RelPath}}/{{.Name}}),
+    // dataset.name only the base name, which loses the sub directory.
+    const path = tr.dataset.value || name;
     const isDir = tr.dataset.isdir === "true";
     const previewType = !isDir && getPreviewType(name);
     document.getElementById("ctx-download").style.display = isDir ? "none" : "";
@@ -31,11 +34,11 @@ export function initContextMenu() {
       closeCtx();
     };
     document.getElementById("ctx-share").onclick = () => {
-      shareFile(name);
+      shareFile(path);
       closeCtx();
     };
     document.getElementById("ctx-delete").onclick = () => {
-      deleteFile(name);
+      deleteFile(path);
       closeCtx();
     };
     menu.style.left = Math.min(e.clientX, window.innerWidth - 180) + "px";

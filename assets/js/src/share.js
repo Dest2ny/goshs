@@ -2,6 +2,7 @@
 import { toast } from './modals.js';
 import { openModal } from './modals.js';
 import { copyText } from './state.js';
+import { fileURL } from './files.js';
 
 let _shareTarget = "";
 export function shareFile(name) {
@@ -16,16 +17,15 @@ export function generateShareLink() {
   const expire = parseInt(document.getElementById("share-expire").value) || 60;
   const expireSeconds = expire * 60;
 
-  var base = "";
-  location.protocol !== "https:"
-    ? (base = "http://" + window.location.host)
-    : (base = "https://" + window.location.host);
-
-  let url = `${base}${_shareTarget}?share&expires=${expireSeconds}`;
+  // Build the URL with the URL API: pasting the raw path onto the host
+  // produced an invalid URL for names without a leading slash and a
+  // non-canonical URL (double slash) for the ones with it.
+  const url = fileURL(_shareTarget);
+  url.search = `share&expires=${expireSeconds}`;
   if (parseInt(limit) > 0) {
-    url += `&limit=${encodeURIComponent(limit)}`;
+    url.search += `&limit=${encodeURIComponent(limit)}`;
   } else {
-    url += "&limit=-1";
+    url.search += "&limit=-1";
   }
 
   fetch(url, {
@@ -52,13 +52,7 @@ export function generateShareLink() {
     .catch(() => toast("Share failed", "error"));
 }
 export function showQR(path) {
-  var url = "";
-  location.protocol !== "https:"
-    ? (url = "http://" + window.location.host)
-    : (url = "https://" + window.location.host);
-
-  path = path.replaceAll("//", "/");
-  const link = `${url}/${path}`.replaceAll("//", "/");
+  const link = fileURL(path).toString();
 
   // Generate QR code on canvas
   new QRious({

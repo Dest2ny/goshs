@@ -104,6 +104,28 @@ function getCsrfToken() {
   const meta = document.querySelector('meta[name="csrf-token"]');
   return meta ? meta.getAttribute("content") : "";
 }
+// Build a root-relative URL for a file or directory.
+//
+// The path used to be pasted onto the host ("http://" + host + path), which
+// broke in two ways:
+//   - a path without a leading slash (right-click menu) turned the host into
+//     an invalid one, so fetch() rejected with "Failed to parse URL" and the
+//     UI showed "Delete failed" without ever sending a request
+//   - a path with a leading double slash (root directory listing) made
+//     net/http's ServeMux answer with a 307 redirect to a re-escaped path,
+//     which then pointed at a file name that does not exist on disk, so the
+//     server happily returned 200 and the file survived the delete
+// Normalising to exactly one leading slash fixes both. Each segment is
+// percent-encoded separately so that non-ASCII names survive the round trip
+// (a literal "%" in a name is encoded to "%25" instead of breaking the URL).
+export function fileURL(path) {
+  const encoded = String(path)
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+  return new URL("/" + encoded.replace(/^\/+/, ""), window.location.origin);
+}
+
 export function deleteFile(path, bulk) {
   let ok;
   !bulk
@@ -111,15 +133,17 @@ export function deleteFile(path, bulk) {
     : (ok = true);
 
   if (ok) {
-    var url = "";
-    location.protocol !== "https:"
-      ? (url = "http://" + window.location.host + path)
-      : (url = "https://" + window.location.host + path);
+    const url = fileURL(path);
     fetch(url, {
       method: "DELETE",
       headers: { "X-CSRF-Token": getCsrfToken() },
     })
-      .then(() => location.reload())
+      .then((res) => {
+        // The server answers 200 even when nothing was removed, but a real
+        // error (403/404/500) must not be swallowed silently.
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return location.reload();
+      })
       .catch(() => toast("Delete failed", "error"));
   }
 }
